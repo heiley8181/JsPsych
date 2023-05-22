@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+ <head>
+    <title>My experiment</title>
+    <script src="jspsych/jspsych.js"></script>
+    <script src="jspsych-psychophysics-master/jspsych-psychophysics-master/jspsych-psychophysics.js"></script>
+    <script src="jspsych/plugin-html-keyboard-response.js"></script>
+    <script src="jspsych/plugin-image-keyboard-response.js"></script>
+    <script src="jspsych/plugin-preload.js"></script>
+    <link href="jspsych/jspsych.css" rel="stylesheet" type="text/css" />
+  </head>
+  <body></body>
+  <script>
+    // test code for the stimuli
+
+    document.body.style.backgroundColor = "grey";
+    // Init jspsych
+    var jsPsych = initJsPsych({
+        on_finish:function(data) {
+            jsPsych.data.displayData();
+        },
+        override_safe_mode: true,
+        show_progress_bar: true
+    });
+
+    // Define timeline
+
+    var timeline = []
+    var preload = {
+        type: jsPsychPreload,
+        images: ['img/blue.png', 'img/orange.png']
+    };
+    timeline.push(preload);
+
+    //Welcome message
+    var welcome = {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: "Welcome to the trial! Please press any key to begin the experiment."
+    };
+    timeline.push(welcome);
+
+    //Instructions
+    var instructions = {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: `
+    <p>In this experiment, a circle will appear in the center 
+    of the screen.</p><p>If the circle is <strong>blue</strong>, 
+    press the letter F on the keyboard as fast as you can.</p>
+    <p>If the circle is <strong>orange</strong>, press the letter J 
+    as fast as you can.</p>
+    <div style='width: 700px;'>
+    <div style='float: left;'><img src='img/blue.png'></img>
+    <p class='small'><strong>Press the F key</strong></p></div>
+    <div style='float: right;'><img src='img/orange.png'></img>
+    <p class='small'><strong>Press the J key</strong></p></div>
+    </div>
+    <p>Press any key to begin.</p>
+  `,
+  post_trial_gap: 2000
+    };
+    timeline.push(instructions);
+
+    // define fixation and circles using jspsych psychophysics
+    const blue_circle_object = {
+        obj_type: 'circle',
+        origin_center: true,
+        radius: 100,
+        line_color: 'blue',
+        fill_color: 'blue',
+        show_start_time: 500
+    };
+
+    const orange_circle_object = {
+        obj_type: 'circle',
+        origin_center: true,
+        radius: 100,
+        line_color: 'orange',
+        fill_color: 'orange',
+        show_start_time: 500
+    };
+
+    // Create Circles Array
+
+    var circles = [orange_circle_object, blue_circle_object];
+    // var shuffledCircles = jsPsych.randomization.repeat(circles, 3, true);
+
+    const fixation = {
+      obj_type: 'cross',
+      startX: 0,
+      startY: 0,
+      line_length: 50,
+      line_color: 'black',
+      origin_center: true,
+      show_end_time: 500
+    };
+
+    // Define Feedback
+    const fdbk = [
+    '<p style="font-size:300%;">Correct!</p>',
+    '<p style="font-size:300%;">Wrong response.</p>',
+    '<p style="font-size:300%;">End of the trial.</p>'
+    ];
+
+    // Define Keys
+    const keys = ['f', 'j'];
+
+    // Define Feedback Display
+    var fdbkDisplay = {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: function() {
+            if (jsPsych.data.getLastTrialData().values()[0].correct == true) {
+                return fdbk[0]
+            } else if (jsPsych.data.getLastTrialData().values()[0].correct == false) {
+                return fdbk[1]
+            } else {
+                return fdbk[2]
+            }
+        },
+        choices: 'NO_KEYS',
+        trial_duration: 500,
+        on_finish: function(data) {
+            var correct = null;
+        }
+    };
+
+    // Define trials
+
+    var trial = {
+        timeline: [
+            {
+                type: jsPsychPsychophysics,
+                stimuli: [fixation, jsPsych.timelineVariable('circles')]}, fdbkDisplay
+            ],
+        choices: ['f', 'j'],
+        response_type: 'key',
+        timeline_variables: [
+            {circles: circles[0]},
+            {circles: circles[1]}
+        ],
+        randomize_order: true,
+        repetitions: 5,
+        data: {
+            task: 'response',
+            correct_response: jsPsych.timelineVariable('correct_response')
+        },
+        on_finish: function(data) {
+            var correct = null;
+            if(jsPsych.timelineVariable('circles') == blue_circle_object && jsPsych.pluginAPI.compareKeys(data.response, keys[0]) ||
+            jsPsych.timelineVariable('circles') == orange_circle_object && jsPsych.pluginAPI.compareKeys(data.response, keys[1])) {
+                correct = true
+            } else if (jsPsych.timelineVariable('circles') == blue_circle_object && jsPsych.pluginAPI.compareKeys(data.response, keys[1]) ||
+            jsPsych.timelineVariable('circles') == orange_circle_object && jsPsych.pluginAPI.compareKeys(data.response, keys[0])) {
+                correct = false
+            }
+            data.correct = correct;
+        }
+    };
+
+    // Define Debrief Block
+
+    const debrief = {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: function() {
+            var trials = jsPsych.data.get().filter({trial_type: 'psychophysics'});
+            var correct_trials = trials.filter({correct: true});
+            var accuracy = Math.round(correct_trials.count() / trials.count() * 100);
+            var rt = Math.round(correct_trials.select('rt').mean());
+
+            return `<p>You responded correctly on ${accuracy}% of the trials.</p>
+          <p>Your average response time was ${rt}ms.</p>
+          <p>Press any key to complete the experiment. Thank you!</p>`;
+            },
+        on_finish: function(data) {
+            var correct = null;
+        }
+    };
+    
+
+
+
+    timeline.push(trial);
+    timeline.push(fdbkDisplay)
+    timeline.push(debrief)
+    jsPsych.run(timeline)
+      </script>
+</html>
